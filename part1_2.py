@@ -57,6 +57,7 @@ athlete_event_results_df = (
     .options(**db_properties)
     .load()
 )
+print(athlete_event_results_df.show())
 
 athlete_event_results_df.select(
     to_json(struct("athlete_id", "event", "medal", "country_noc", "sport")).alias(
@@ -72,7 +73,7 @@ athlete_event_results_df.select(
     "kafka.sasl.jaas.config",
     f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_config["username"]}" password="{kafka_config["password"]}";',
 ).option(
-    "topic", "athlete_event_results"
+    "topic", "vchub_athlete_event_results"
 ).save()
 
 # Read results data from Kafka topic
@@ -85,7 +86,7 @@ kafka_results_df = (
         "kafka.sasl.jaas.config",
         f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_config["username"]}" password="{kafka_config["password"]}";',
     )
-    .option("subscribe", "athlete_event_results")
+    .option("subscribe", "vchub_athlete_event_results")
     .load()
 )
 
@@ -96,6 +97,7 @@ results_df = (
     )
     .select("data.*")
 )
+
 
 # Debugging: Display results dataframe in console
 results_df.writeStream.format("console").outputMode("append").start()
@@ -139,44 +141,44 @@ grouped_avg_df.writeStream.format("console").outputMode(
 ).start().awaitTermination()
 
 
-# 6a. Stream data to output Kafka topic
-def write_to_kafka(batch_df, batch_id):
-    batch_df.select(
-        to_json(
-            struct(
-                "sport",
-                "medal",
-                "gender",
-                "result_country_noc",
-                "avg_height",
-                "avg_weight",
-                "timestamp",
-            )
-        ).alias("value")
-    ).write.format("kafka").option(
-        "kafka.bootstrap.servers", ",".join(kafka_config["bootstrap_servers"])
-    ).option(
-        "kafka.security.protocol", kafka_config["security_protocol"]
-    ).option(
-        "kafka.sasl.mechanism", kafka_config["sasl_mechanism"]
-    ).option(
-        "kafka.sasl.jaas.config",
-        f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_config["username"]}" password="{kafka_config["password"]}";',
-    ).option(
-        "topic", "athlete_summary"
-    ).save()
+# # 6a. Stream data to output Kafka topic
+# def write_to_kafka(batch_df, batch_id):
+#     batch_df.select(
+#         to_json(
+#             struct(
+#                 "sport",
+#                 "medal",
+#                 "gender",
+#                 "result_country_noc",
+#                 "avg_height",
+#                 "avg_weight",
+#                 "timestamp",
+#             )
+#         ).alias("value")
+#     ).write.format("kafka").option(
+#         "kafka.bootstrap.servers", ",".join(kafka_config["bootstrap_servers"])
+#     ).option(
+#         "kafka.security.protocol", kafka_config["security_protocol"]
+#     ).option(
+#         "kafka.sasl.mechanism", kafka_config["sasl_mechanism"]
+#     ).option(
+#         "kafka.sasl.jaas.config",
+#         f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_config["username"]}" password="{kafka_config["password"]}";',
+#     ).option(
+#         "topic", "vchub_athlete_summary"
+#     ).save()
 
 
-grouped_avg_df.writeStream.outputMode("update").foreachBatch(write_to_kafka).start()
+# grouped_avg_df.writeStream.outputMode("update").foreachBatch(write_to_kafka).start()
 
 
-# 6b. Stream data to database
-def write_to_mysql(batch_df, batch_id):
-    batch_df.write.format("jdbc").option("url", db_url).option(
-        "dbtable", "vchub_athlete_summary"
-    ).options(**db_properties).mode("append").save()
+# # 6b. Stream data to database
+# def write_to_mysql(batch_df, batch_id):
+#     batch_df.write.format("jdbc").option("url", db_url).option(
+#         "dbtable", "vchub_athlete_summary"
+#     ).options(**db_properties).mode("append").save()
 
 
-grouped_avg_df.writeStream.outputMode("update").foreachBatch(
-    write_to_mysql
-).start().awaitTermination()
+# grouped_avg_df.writeStream.outputMode("update").foreachBatch(
+#     write_to_mysql
+# ).start().awaitTermination()
