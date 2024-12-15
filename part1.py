@@ -84,6 +84,11 @@ kafka_streaming_df = (
     .select("data.athlete_id", "data.sport", "data.medal")
 )
 
+# # Виведення отриманих даних на екран
+# kafka_streaming_df.writeStream.trigger(availableNow=True).outputMode("append").format(
+#     "console"
+# ).option("truncate", "false").start().awaitTermination()
+
 athlete_bio_df = (
     spark.read.format("jdbc")
     .options(
@@ -114,6 +119,10 @@ aggregated_df = joined_df.groupBy("sport", "medal", "sex", "country_noc").agg(
     avg("weight").alias("avg_weight"),
     current_timestamp().alias("timestamp"),
 )
+# Виведення отриманих даних на екран
+aggregated_df.writeStream.trigger(availableNow=True).outputMode("complete").format(
+    "console"
+).option("truncate", "false").start().awaitTermination()
 
 
 def foreach_batch_function(df, epoch_id):
@@ -129,13 +138,13 @@ def foreach_batch_function(df, epoch_id):
         "kafka.sasl.jaas.config",
         'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="VawEzo1ikLtrA8Ug8THa";',
     ).option(
-        "topic", "vchub_athlete_aggreted"
+        "topic", "vchub_athlete_aggregated"
     ).save()
 
     df.write.format("jdbc").options(
         url="jdbc:mysql://217.61.57.46:3306/neo_data",
         driver="com.mysql.cj.jdbc.Driver",
-        dbtable="vchub_athlete_aggreted",
+        dbtable="vchub_athlete_aggregated",
         user=jdbc_user,
         password=jdbc_password,
     ).mode("append").save()
